@@ -1,9 +1,7 @@
-- The e-mail is matched against `res.users.login` only. Matching against the
-  partner's `email` field is deliberately not done: `login` is the credential,
-  `email` is not unique and is not an authentication attribute.
-- There is no separate switch to exclude portal or public users from the
-  matching. If those must be excluded, do not enable the flag on that
-  provider.
+- The e-mail is matched against `res.users.login` only, never against the
+  partner's `email`, which is not unique and is not a credential.
+- Portal users are eligible. There is no switch to exclude them other than
+  leaving the option off for that provider.
 - With both `auth_oidc` and `auth_oauth_multi_token` installed, the first
   login through an OpenID Connect flow (`id_token`, `id_token_code`) is not
   linked: it is refused, as without this module. `auth_oauth_multi_token`

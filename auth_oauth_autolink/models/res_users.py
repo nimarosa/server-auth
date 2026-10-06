@@ -8,10 +8,7 @@ from odoo.tools import email_normalize
 
 _logger = logging.getLogger(__name__)
 
-# Spellings of the "this e-mail was verified by the provider" claim.
-# ``email_verified`` is the OpenID Connect standard one (Google's
-# /oauth2/v3/userinfo); ``verified_email`` is the legacy Google tokeninfo v1
-# spelling, still returned by some deployments.
+# OpenID Connect claim, then the legacy Google tokeninfo spelling.
 VERIFIED_EMAIL_CLAIMS = ("email_verified", "verified_email")
 TRUTHY_CLAIM_VALUES = ("true", "1", "yes")
 
@@ -21,131 +18,109 @@ class ResUsers(models.Model):
 
     @api.model
     def _auth_oauth_validate(self, provider, access_token):
-        """Link the verified identity to an existing user before sign-in.
-
-        Stock ``auth_oauth`` recognises a user only by the ``oauth_uid`` stored
-        on it, so a user created by an administrator can never log in through
-        OAuth: the lookup misses, the flow falls through to signup, and a B2B
-        database refuses it. This override performs that first link once, and
-        only under the conditions in :meth:`_auth_oauth_autolink_find_user`.
-
-        The link is made **here**, right after the provider vouched for the
-        identity, so that every module overriding ``_auth_oauth_signin`` sees
-        an ordinary already-linked user. ``auth_oauth_multi_token`` in
-        particular reads its recordset *before* delegating to ``super()`` and
-        raises ``AccessDenied`` on it afterwards, which no amount of
-        cooperation from inside that chain could satisfy.
-        """
+        # Link before the sign-in chain starts: auth_oauth_multi_token looks
+        # the user up before calling super() and refuses the login when that
+        # lookup was empty, even if the user got linked further down.
         validation = super()._auth_oauth_validate(provider, access_token)
         self._auth_oauth_autolink(provider, validation)
         return validation
 
     @api.model
     def _auth_oauth_signin(self, provider, validation, params):
-        """Link here too, for the flows that skip ``_auth_oauth_validate``.
-
-        The OpenID Connect flows of ``auth_oidc`` decode the ID token and call
-        this method directly. The link is idempotent, so a login that already
-        went through ``_auth_oauth_validate`` is not linked twice.
-
-        It is made before ``super()``: on a signup-enabled (B2C) database
-        ``super()`` would otherwise try to *create* a user with the very login
-        about to be linked, which fails on the ``login`` unique index and
-        poisons the transaction.
-
-        Without an access token there is nothing to sign in with. That is the
-        case when an ``auth_oauth_multi_token`` without the fix for the first
-        login runs before this override: it blanks the token of a user it does
-        not know yet and refuses the login afterwards, whatever is linked here.
-        """
+        # The OpenID Connect flows of auth_oidc never call
+        # _auth_oauth_validate. Linking before super() keeps a database with
+        # signup enabled from trying to create a user with that login.
+        # No access token: an auth_oauth_multi_token without the first-login
+        # fix blanked it, and refuses this login whatever is linked here.
         if params.get("access_token"):
             self._auth_oauth_autolink(provider, validation)
         return super()._auth_oauth_signin(provider, validation, params)
 
     @api.model
     def _auth_oauth_autolink(self, provider, validation):
-        """Link this OAuth identity to an existing user, once.
+        """Link the OAuth identity to an existing user and return that user.
 
-        Returns the linked user, or an empty recordset when nothing was
-        linked -- which is the normal outcome for every login after the first
-        one, and for every request that does not pass all the guards.
+        Nothing is linked, and an empty recordset is returned, when the
+        identity is already known or a guard refuses.
         """
         oauth_uid = validation["user_id"]
-        already_linked = self.sudo().search_count(
+        if self.search_count(
             [("oauth_uid", "=", oauth_uid), ("oauth_provider_id", "=", provider)],
-        )
-        if already_linked:
-            # An ordinary login: the stock flow resolves it on its own.
+            limit=1,
+        ):
             return self.browse()
         user = self._auth_oauth_autolink_find_user(provider, validation)
-        if not user:
-            return self.browse()
-        user.write({"oauth_provider_id": provider, "oauth_uid": oauth_uid})
-        self._auth_oauth_autolink_log(user)
+        if user:
+            user.write({"oauth_provider_id": provider, "oauth_uid": oauth_uid})
+            provider_name = user.oauth_provider_id.name
+            _logger.info(
+                "OAuth auto-link: user %s (id %s) linked to provider %s by "
+                "verified e-mail.",
+                user.login,
+                user.id,
+                provider_name,
+            )
+            # res.users is not a mail.thread; the chatter lives on its partner.
+            user.partner_id.message_post(
+                body=_(
+                    "Linked to the %(provider)s account by verified e-mail on "
+                    "first OAuth login.",
+                    provider=provider_name,
+                )
+            )
         return user
 
     @api.model
     def _auth_oauth_autolink_find_user(self, provider, validation):
-        """Return the single user this OAuth account may be linked to, or None.
+        """Return the only user this identity may be linked to, if any.
 
-        Every guard here is deliberate; a ``None`` return means the caller
-        leaves the stock flow alone, which raises the usual ``AccessDenied``
-        without disclosing which guard refused.
+        Refusals are logged at INFO: they are expected, and the caller gets
+        the stock ``AccessDenied`` without learning which guard refused.
         """
-        oauth_provider = self.env["auth.oauth.provider"].sudo().browse(provider)
+        no_user = self.browse()
+        oauth_provider = self.env["auth.oauth.provider"].browse(provider)
         if not oauth_provider.autolink_by_email:
-            return None
+            return no_user
         if not self._auth_oauth_autolink_is_email_verified(validation):
             _logger.info(
-                "OAuth auto-link refused for provider %s: the provider did not "
-                "report the e-mail address as verified.",
+                "OAuth auto-link refused for provider %s: e-mail not verified.",
                 oauth_provider.name,
             )
-            return None
+            return no_user
         email = email_normalize(validation.get("email"))
         if not email:
-            return None
-        # ``=ilike`` is a pattern match, so a login containing '%' or '_' can
-        # widen the candidate set; the normalized comparison below is what
-        # actually decides. ``search`` excludes archived users by default,
-        # which is why an inactive user is never linked.
-        candidates = self.sudo().search([("login", "=ilike", email)])
-        matches = candidates.filtered(lambda user: email_normalize(user.login) == email)
-        if len(matches) != 1:
-            if matches:
-                # Logged at INFO on purpose: an ambiguous e-mail is a refusal,
-                # not a server fault, and this runs on every such login.
+            return no_user
+        # ``=ilike`` treats ``_`` and ``%`` as wildcards: the normalized
+        # comparison decides. Archived users are not searched.
+        users = self.search([("login", "=ilike", email)]).filtered(
+            lambda user: email_normalize(user.login) == email
+        )
+        if len(users) != 1:
+            if users:
                 _logger.info(
-                    "OAuth auto-link refused: %s active users share the login %s.",
-                    len(matches),
+                    "OAuth auto-link refused: %s users share the login %s.",
+                    len(users),
                     email,
                 )
-            return None
-        if matches.oauth_uid:
+            return no_user
+        if users.oauth_uid:
             _logger.info(
-                "OAuth auto-link refused: user %s is already linked to an "
-                "OAuth account.",
-                matches.login,
+                "OAuth auto-link refused: user %s is already linked.", users.login
             )
-            return None
-        if matches._has_group("base.group_system"):
+            return no_user
+        if users._has_group("base.group_system"):
             # Whoever controls that mailbox at the provider would become an
-            # administrator: those accounts are linked by hand.
+            # administrator: those users are linked by hand.
             _logger.info(
-                "OAuth auto-link refused: user %s is an administrator and must "
-                "be linked manually.",
-                matches.login,
+                "OAuth auto-link refused: user %s is an administrator.",
+                users.login,
             )
-            return None
-        return matches
+            return no_user
+        return users
 
     @api.model
     def _auth_oauth_autolink_is_email_verified(self, validation):
-        """Whether the provider vouches for the ownership of the e-mail.
-
-        An absent claim is treated as *not* verified: it is the whole trust
-        anchor of this module, so it is never assumed.
-        """
+        # An absent claim is not a verified e-mail.
         for claim in VERIFIED_EMAIL_CLAIMS:
             value = validation.get(claim)
             if value is True:
@@ -153,21 +128,3 @@ class ResUsers(models.Model):
             if isinstance(value, str) and value.strip().lower() in TRUTHY_CLAIM_VALUES:
                 return True
         return False
-
-    def _auth_oauth_autolink_log(self, user):
-        provider_name = user.oauth_provider_id.sudo().name
-        _logger.info(
-            "OAuth auto-link: user %s (id %s) linked to provider %s by verified "
-            "e-mail on first OAuth login.",
-            user.login,
-            user.id,
-            provider_name,
-        )
-        # res.users is not a mail.thread; the chatter lives on its partner.
-        user.partner_id.sudo().message_post(
-            body=_(
-                "Linked to the %(provider)s account by verified e-mail on first "
-                "OAuth login.",
-                provider=provider_name,
-            )
-        )

@@ -11,12 +11,9 @@ class AuthOauthProvider(models.Model):
         string="Auto-link existing users by email",
         default=False,
         help="On the first login through this provider, link the OAuth account "
-        "to the existing Odoo user whose login is the same e-mail address, "
-        "instead of refusing the login.\n"
-        "The link is only performed when the provider itself reports the "
-        "e-mail as verified, when exactly one active user matches, and when "
-        "that user is neither an administrator nor linked to any OAuth "
-        "account yet.\n"
+        "to the existing user whose login is the e-mail address the provider "
+        "verified. Administrators and users already linked to an OAuth "
+        "account are never linked.\n"
         "Only enable this for providers you trust to verify e-mail ownership "
         "(e.g. Google Workspace).",
     )

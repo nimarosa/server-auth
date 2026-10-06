@@ -14,9 +14,7 @@ class TestAuthOauthAutolink(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Signup must stay closed (B2B): that is the production setup this
-        # module exists for, and it makes the stock sign-in deterministically
-        # raise AccessDenied instead of creating a duplicate user.
+        # Signup closed: the stock sign-in raises AccessDenied on a miss.
         cls.env["ir.config_parameter"].sudo().set_param(
             "auth_signup.invitation_scope", "b2b"
         )
@@ -35,9 +33,6 @@ class TestAuthOauthAutolink(TransactionCase):
             {"name": "Ana Perez", "login": "ana.perez@example.com"}
         )
 
-    # ------------------------------------------------------------------
-    # helpers
-    # ------------------------------------------------------------------
     def _validation(self, email="ana.perez@example.com", uid="google-uid-1", **kw):
         validation = {"user_id": uid, "email": email, "email_verified": True}
         validation.update(kw)
@@ -50,7 +45,6 @@ class TestAuthOauthAutolink(TransactionCase):
         }
 
     def _autolink(self, validation=None, provider=None):
-        """Drive the link exactly where ``_auth_oauth_validate`` drives it."""
         return (
             self.env["res.users"]
             .sudo()
@@ -84,18 +78,9 @@ class TestAuthOauthAutolink(TransactionCase):
         )
 
     def _skip_if_logins_are_lowercased(self):
-        """``auth_user_case_insensitive`` makes mixed-case logins impossible.
-
-        It is part of this same repository, so it is installed in the
-        all-addons CI job; when it is, a login that differs only in case
-        cannot exist and these two scenarios are unreachable by construction.
-        """
         if self._is_installed("auth_user_case_insensitive"):
             self.skipTest("auth_user_case_insensitive forces logins to lowercase")
 
-    # ------------------------------------------------------------------
-    # happy path
-    # ------------------------------------------------------------------
     def test_links_existing_user_by_verified_email(self):
         messages_before = self._messages(self.user)
 
@@ -109,12 +94,7 @@ class TestAuthOauthAutolink(TransactionCase):
         self.assertIn("Google", new_messages.body)
 
     def test_validation_links_and_then_sign_in_succeeds(self):
-        """The real entry point: validate (which links) then sign in.
-
-        ``_auth_oauth_rpc`` is the only piece that would talk to the provider,
-        so it is the only thing mocked; everything below it is the stock code
-        path, including whatever else overrides ``_auth_oauth_signin``.
-        """
+        """The stock entry point, with only the call to the provider mocked."""
         users = self.env["res.users"].sudo()
         with patch.object(
             type(users), "_auth_oauth_rpc", return_value=self._validation()
@@ -198,9 +178,6 @@ class TestAuthOauthAutolink(TransactionCase):
 
         self.assertEqual(linked, self.user)
 
-    # ------------------------------------------------------------------
-    # refusals -- every one of them must leave the stock behaviour alone
-    # ------------------------------------------------------------------
     def _assert_refused(self, **kw):
         self.assertFalse(self._autolink(**kw), "nothing may be linked")
         with self.assertRaises(AccessDenied):

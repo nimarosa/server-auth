@@ -1,15 +1,8 @@
-Nothing changes for the user: they click the provider button on the login page
-as usual.
+Nothing changes for users: they click the provider button on the login page.
 
-The first time an existing Odoo user logs in through a provider with the flag
-enabled, and the provider reports their e-mail address as verified, their
-account is linked to that OAuth account and they are logged in. A note is
-posted on the user's partner chatter recording the link, and the server log
-gets an INFO line.
+The first login of an existing user links the account and logs them in; a
+note on the user's partner records it. Later logins go through the stock
+`oauth_uid` lookup.
 
-Every subsequent login goes through the stock `oauth_uid` lookup, so the
-module adds no extra queries after the first one.
-
-When any of the conditions is not met the login is refused exactly like stock
-`auth_oauth` does. The reason is written to the server log, never disclosed to
-the caller.
+When a condition is not met, the login is refused as stock `auth_oauth` does.
+The reason is written to the server log, never shown to the caller.

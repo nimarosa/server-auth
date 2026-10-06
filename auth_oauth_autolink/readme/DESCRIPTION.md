@@ -1,73 +1,37 @@
-This module lets users that **already exist in Odoo** log in through an
-OAuth provider, without writing the provider's opaque identifier onto every
-user record by hand.
-
-## The problem
-
 Stock `auth_oauth` recognises a user only by the `oauth_uid` stored on the
-user record (`res.users.oauth_uid` + `oauth_provider_id`). A user created by
-an administrator has neither, so the very first OAuth login misses, falls
-through to the signup path and -- on a B2B database, where signup is disabled
--- is refused with *"You do not have access to this database..."*. The only
-stock workarounds are enabling public signup, which nobody wants on a B2B
-database, or filling `oauth_uid` in manually for every user.
+user record. A user created by an administrator has none, so the first OAuth
+login falls through to signup and, where signup is disabled, is refused. The
+stock workarounds are opening signup or filling in the provider's identifier
+on every user by hand.
 
-## What this module does
+With this module, the first OAuth login is linked to the existing user whose
+login is the e-mail address the provider verified. After that, the stock
+`oauth_uid` lookup takes over.
 
-On the first OAuth login, when the `oauth_uid` lookup misses, the login is
-linked to the existing user whose login is the e-mail address the provider
-verified. From then on the stock path takes over and nothing else changes.
+The link is made only when all of these hold:
 
-The link is performed **only** when *all* of the following hold:
+- the provider has **Auto-link existing users by email** ticked (off by
+  default);
+- the provider reports the e-mail as verified (`email_verified`, or the
+  legacy `verified_email`); an absent claim counts as not verified;
+- exactly one active user has that e-mail as login, compared
+  case-insensitively;
+- that user is not linked to an OAuth account yet, so an existing link is
+  never moved;
+- that user is not an administrator (`base.group_system`): whoever controls
+  that mailbox at the provider would otherwise get administrator access.
+  Administrators are linked by hand.
 
-1. The provider has **Auto-link existing users by email** ticked
-   (`auth.oauth.provider.autolink_by_email`, off by default).
-2. The provider reports the e-mail as **verified** -- the `email_verified`
-   (OpenID Connect) or `verified_email` (legacy Google tokeninfo) claim. An
-   absent claim counts as *not verified*.
-3. Exactly **one active** user matches `login == email`, compared with Odoo's
-   own `email_normalize`, so the match is case-insensitive unlike Odoo's
-   case-sensitive login.
-4. That user has **no `oauth_uid`** yet.
-5. That user is **not an administrator** (`base.group_system`).
+Otherwise the login behaves as without this module: the same refusal, with
+the reason written to the server log only.
 
-Anything else behaves exactly like stock `auth_oauth`: the same
-`AccessDenied`, with no hint about which condition refused.
+When a link is made, `oauth_provider_id` and `oauth_uid` are written on the
+user and a note is posted on the user's partner.
 
-When a link is made, the module writes `oauth_provider_id` and `oauth_uid`,
-logs at INFO level and posts a note on the user's partner chatter
-(`res.users` is not a `mail.thread`).
-
-The link is performed in `_auth_oauth_validate`, right after the provider
-vouched for the identity and *before* the sign-in chain starts, so other
-modules overriding the sign-in -- `auth_oauth_multi_token`, for one -- see an
-ordinary already-linked user. It is also performed at the start of
-`_auth_oauth_signin`, for the OpenID Connect flows of `auth_oidc`, which
-never call `_auth_oauth_validate`. Linking before the stock sign-in is what
-keeps a signup-enabled (B2C) database safe: it would otherwise try to
-*create* a user with the very login about to be linked.
-
-## Security model
+It works for the providers of `auth_oauth` and for the OpenID Connect flows
+of `auth_oidc`.
 
 **The trust anchor is the provider's verified-email claim.** If a provider
-lets anyone claim an arbitrary e-mail address, ticking this flag lets that
-someone take over the matching Odoo account. Only enable it for providers you
-control, or trust to verify e-mail ownership -- a Google Workspace domain is
-the intended case.
-
-The consequences of the guards above, spelled out:
-
-- An **already-linked** user is never re-pointed at another OAuth account, so
-  the flag can never be used to hijack an account that already logs in.
-- An **archived** user is never linked (`search` excludes archived records),
-  so deactivating a user still ends their access.
-- An **ambiguous** e-mail (two users whose logins differ only in case) is
-  refused rather than resolved arbitrarily.
-- An **administrator** is never linked automatically: whoever controls
-  that mailbox at the provider would otherwise get administrator access.
-  Link those accounts by hand (see the configuration section).
-- **Portal and public users are eligible**, deliberately: a portal customer
-  whose login is their verified e-mail may use the same provider. If that is
-  not wanted, do not enable the flag; there is no separate switch.
-- The module never widens what OAuth can do: it only replaces a refusal with a
-  link to an account that *already* exists.
+lets anyone claim an arbitrary e-mail address, ticking the option lets them
+take over the matching Odoo account. Enable it only for providers you control
+or trust to verify e-mail ownership, such as a Google Workspace domain.

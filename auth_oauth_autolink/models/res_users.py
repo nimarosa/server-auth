@@ -117,6 +117,15 @@ class ResUsers(models.Model):
                 matches.login,
             )
             return None
+        if matches._has_group("base.group_system"):
+            # Whoever controls that mailbox at the provider would become an
+            # administrator: those accounts are linked by hand.
+            _logger.info(
+                "OAuth auto-link refused: user %s is an administrator and must "
+                "be linked manually.",
+                matches.login,
+            )
+            return None
         return matches
 
     @api.model

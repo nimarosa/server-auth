@@ -63,6 +63,7 @@ The link is performed **only** when *all* of the following hold:
    Odoo's own ``email_normalize``, so the match is case-insensitive
    unlike Odoo's case-sensitive login.
 4. That user has **no ``oauth_uid``** yet.
+5. That user is **not an administrator** (``base.group_system``).
 
 Anything else behaves exactly like stock ``auth_oauth``: the same
 ``AccessDenied``, with no hint about which condition refused.
@@ -100,6 +101,9 @@ The consequences of the guards above, spelled out:
   records), so deactivating a user still ends their access.
 - An **ambiguous** e-mail (two users whose logins differ only in case)
   is refused rather than resolved arbitrarily.
+- An **administrator** is never linked automatically: whoever controls
+  that mailbox at the provider would otherwise get administrator access.
+  Link those accounts by hand (see the configuration section).
 - **Portal and public users are eligible**, deliberately: a portal
   customer whose login is their verified e-mail may use the same
   provider. If that is not wanted, do not enable the flag; there is no

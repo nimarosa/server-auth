@@ -401,6 +401,7 @@ Google tokeninfo) claim. An absent claim counts as <em>not verified</em>.</li>
 Odoo’s own <tt class="docutils literal">email_normalize</tt>, so the match is case-insensitive
 unlike Odoo’s case-sensitive login.</li>
 <li>That user has <strong>no ``oauth_uid``</strong> yet.</li>
+<li>That user is <strong>not an administrator</strong> (<tt class="docutils literal">base.group_system</tt>).</li>
 </ol>
 <p>Anything else behaves exactly like stock <tt class="docutils literal">auth_oauth</tt>: the same
 <tt class="docutils literal">AccessDenied</tt>, with no hint about which condition refused.</p>
@@ -434,6 +435,9 @@ already logs in.</li>
 records), so deactivating a user still ends their access.</li>
 <li>An <strong>ambiguous</strong> e-mail (two users whose logins differ only in case)
 is refused rather than resolved arbitrarily.</li>
+<li>An <strong>administrator</strong> is never linked automatically: whoever controls
+that mailbox at the provider would otherwise get administrator access.
+Link those accounts by hand (see the configuration section).</li>
 <li><strong>Portal and public users are eligible</strong>, deliberately: a portal
 customer whose login is their verified e-mail may use the same
 provider. If that is not wanted, do not enable the flag; there is no

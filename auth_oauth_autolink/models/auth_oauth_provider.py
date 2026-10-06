@@ -15,7 +15,8 @@ class AuthOauthProvider(models.Model):
         "instead of refusing the login.\n"
         "The link is only performed when the provider itself reports the "
         "e-mail as verified, when exactly one active user matches, and when "
-        "that user is not linked to any OAuth account yet.\n"
+        "that user is neither an administrator nor linked to any OAuth "
+        "account yet.\n"
         "Only enable this for providers you trust to verify e-mail ownership "
         "(e.g. Google Workspace).",
     )

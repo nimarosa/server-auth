@@ -226,6 +226,23 @@ class TestAuthOauthAutolink(TransactionCase):
         self.assertEqual(self.user.oauth_uid, "other-uid")
         self.assertEqual(self.user.oauth_provider_id, self.other_provider)
 
+    def test_administrator_is_never_linked(self):
+        self.user.groups_id += self.env.ref("base.group_system")
+
+        with self.assertLogs(
+            "odoo.addons.auth_oauth_autolink.models.res_users", level="INFO"
+        ) as logs:
+            self._assert_refused()
+
+        self.assertIn("administrator", "".join(logs.output))
+        self.assertFalse(self.user.oauth_uid)
+        self.assertFalse(self.user.oauth_provider_id)
+
+    def test_internal_user_who_is_not_an_administrator_is_linked(self):
+        self.user.groups_id = self.env.ref("base.group_user")
+
+        self.assertEqual(self._autolink(), self.user)
+
     def test_inactive_user_is_not_linked(self):
         self.user.active = False
 

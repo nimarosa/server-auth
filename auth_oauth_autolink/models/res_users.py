@@ -29,27 +29,38 @@ class ResUsers(models.Model):
         database refuses it. This override performs that first link once, and
         only under the conditions in :meth:`_auth_oauth_autolink_find_user`.
 
-        The link is deliberately made **here**, right after the provider
-        vouched for the identity, and not in ``_auth_oauth_signin``:
-
-        * By the time the sign-in chain runs, the user is already linked, so
-          every other module overriding ``_auth_oauth_signin`` sees an ordinary
-          already-linked user. ``auth_oauth_multi_token`` in particular reads
-          its recordset *before* delegating to ``super()`` and raises
-          ``AccessDenied`` on it afterwards, which no amount of cooperation
-          from inside that chain could satisfy.
-        * The access token stays the business of the stock implementation (and
-          of ``auth_oauth_multi_token`` when installed), so this module never
-          has to guess how a token should be stored.
-
-        Doing it before sign-in is also what keeps a signup-enabled (B2C)
-        database safe: ``super()`` would otherwise try to *create* a user with
-        the very login about to be linked, which fails on the ``login`` unique
-        index and poisons the transaction.
+        The link is made **here**, right after the provider vouched for the
+        identity, so that every module overriding ``_auth_oauth_signin`` sees
+        an ordinary already-linked user. ``auth_oauth_multi_token`` in
+        particular reads its recordset *before* delegating to ``super()`` and
+        raises ``AccessDenied`` on it afterwards, which no amount of
+        cooperation from inside that chain could satisfy.
         """
         validation = super()._auth_oauth_validate(provider, access_token)
         self._auth_oauth_autolink(provider, validation)
         return validation
+
+    @api.model
+    def _auth_oauth_signin(self, provider, validation, params):
+        """Link here too, for the flows that skip ``_auth_oauth_validate``.
+
+        The OpenID Connect flows of ``auth_oidc`` decode the ID token and call
+        this method directly. The link is idempotent, so a login that already
+        went through ``_auth_oauth_validate`` is not linked twice.
+
+        It is made before ``super()``: on a signup-enabled (B2C) database
+        ``super()`` would otherwise try to *create* a user with the very login
+        about to be linked, which fails on the ``login`` unique index and
+        poisons the transaction.
+
+        Without an access token there is nothing to sign in with. That is the
+        case when an ``auth_oauth_multi_token`` without the fix for the first
+        login runs before this override: it blanks the token of a user it does
+        not know yet and refuses the login afterwards, whatever is linked here.
+        """
+        if params.get("access_token"):
+            self._auth_oauth_autolink(provider, validation)
+        return super()._auth_oauth_signin(provider, validation, params)
 
     @api.model
     def _auth_oauth_autolink(self, provider, validation):

@@ -73,15 +73,14 @@ When a link is made, the module writes ``oauth_provider_id`` and
 chatter (``res.users`` is not a ``mail.thread``).
 
 The link is performed in ``_auth_oauth_validate``, right after the
-provider vouched for the identity and *before* the sign-in chain starts.
-By the time ``_auth_oauth_signin`` runs, the user is an ordinary
-already-linked user, so the stock implementation stores the access token
-as it always does and other modules overriding the sign-in --
-``auth_oauth_multi_token``, for one -- need no cooperation from this
-one. Linking before sign-in is also what keeps a signup-enabled (B2C)
-database safe: the stock flow would otherwise try to *create* a user
-with the very login about to be linked, which fails on the ``login``
-unique index and poisons the transaction.
+provider vouched for the identity and *before* the sign-in chain starts,
+so other modules overriding the sign-in -- ``auth_oauth_multi_token``,
+for one -- see an ordinary already-linked user. It is also performed at
+the start of ``_auth_oauth_signin``, for the OpenID Connect flows of
+``auth_oidc``, which never call ``_auth_oauth_validate``. Linking before
+the stock sign-in is what keeps a signup-enabled (B2C) database safe: it
+would otherwise try to *create* a user with the very login about to be
+linked.
 
 Security model
 --------------
@@ -145,6 +144,15 @@ Known issues / Roadmap
 - There is no separate switch to exclude portal or public users from the
   matching. If those must be excluded, do not enable the flag on that
   provider.
+- With both ``auth_oidc`` and ``auth_oauth_multi_token`` installed, the
+  first login through an OpenID Connect flow (``id_token``,
+  ``id_token_code``) is not linked: it is refused, as without this
+  module. ``auth_oauth_multi_token`` looks the user up before the rest
+  of the sign-in runs and refuses the login when that lookup was empty.
+  This is fixed in 19.0
+  (`#1026 <https://github.com/OCA/server-auth/pull/1026>`__) and not in
+  18.0 yet; until then, link those users by hand. Plain OAuth2 providers
+  are not affected, with or without ``auth_oauth_multi_token``.
 
 Bug Tracker
 ===========

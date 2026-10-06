@@ -39,14 +39,13 @@ logs at INFO level and posts a note on the user's partner chatter
 (`res.users` is not a `mail.thread`).
 
 The link is performed in `_auth_oauth_validate`, right after the provider
-vouched for the identity and *before* the sign-in chain starts. By the time
-`_auth_oauth_signin` runs, the user is an ordinary already-linked user, so
-the stock implementation stores the access token as it always does and other
-modules overriding the sign-in -- `auth_oauth_multi_token`, for one -- need no
-cooperation from this one. Linking before sign-in is also what keeps a
-signup-enabled (B2C) database safe: the stock flow would otherwise try to
-*create* a user with the very login about to be linked, which fails on the
-`login` unique index and poisons the transaction.
+vouched for the identity and *before* the sign-in chain starts, so other
+modules overriding the sign-in -- `auth_oauth_multi_token`, for one -- see an
+ordinary already-linked user. It is also performed at the start of
+`_auth_oauth_signin`, for the OpenID Connect flows of `auth_oidc`, which
+never call `_auth_oauth_validate`. Linking before the stock sign-in is what
+keeps a signup-enabled (B2C) database safe: it would otherwise try to
+*create* a user with the very login about to be linked.
 
 ## Security model
 

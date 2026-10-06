@@ -76,6 +76,13 @@ class TestAuthOauthAutolink(TransactionCase):
             [("model", "=", "res.partner"), ("res_id", "=", user.partner_id.id)]
         )
 
+    def _is_installed(self, module):
+        return bool(
+            self.env["ir.module.module"]
+            .sudo()
+            .search_count([("name", "=", module), ("state", "=", "installed")])
+        )
+
     def _skip_if_logins_are_lowercased(self):
         """``auth_user_case_insensitive`` makes mixed-case logins impossible.
 
@@ -83,17 +90,7 @@ class TestAuthOauthAutolink(TransactionCase):
         all-addons CI job; when it is, a login that differs only in case
         cannot exist and these two scenarios are unreachable by construction.
         """
-        installed = (
-            self.env["ir.module.module"]
-            .sudo()
-            .search_count(
-                [
-                    ("name", "=", "auth_user_case_insensitive"),
-                    ("state", "=", "installed"),
-                ]
-            )
-        )
-        if installed:
+        if self._is_installed("auth_user_case_insensitive"):
             self.skipTest("auth_user_case_insensitive forces logins to lowercase")
 
     # ------------------------------------------------------------------
@@ -130,6 +127,37 @@ class TestAuthOauthAutolink(TransactionCase):
         self.assertEqual(
             self._signin(validation=validation), self.user.login, "sign-in must follow"
         )
+
+    def test_sign_in_without_validation_links(self):
+        """``auth_oidc`` signs in from the ID token: no ``_auth_oauth_validate``."""
+        if self._is_installed("auth_oauth_multi_token"):
+            self.skipTest(
+                "auth_oauth_multi_token refuses a user linked during the sign-in"
+            )
+
+        self.assertEqual(self._signin(), self.user.login)
+
+        self.assertEqual(self.user.oauth_uid, "google-uid-1")
+        self.assertEqual(self.user.oauth_provider_id, self.provider)
+        self.assertEqual(self.user.oauth_access_token, "token-1")
+
+    def test_sign_in_without_access_token_does_not_link(self):
+        """What an unfixed ``auth_oauth_multi_token`` hands down the chain."""
+        params = self._params()
+        params["access_token"] = False
+
+        with self.assertRaises(AccessDenied):
+            self._signin(params=params)
+
+        self.assertFalse(self.user.oauth_uid)
+
+    def test_sign_in_does_not_link_again_after_validation(self):
+        self._autolink()
+        messages_after_link = self._messages(self.user)
+
+        self.assertEqual(self._signin(), self.user.login)
+
+        self.assertEqual(self._messages(self.user), messages_after_link)
 
     def test_linked_user_can_then_sign_in(self):
         self._autolink()

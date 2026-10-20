@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Deliberately empty: nobody gets it on install. The administrator adds
+       themselves (and whoever else needs a break-glass) BEFORE enabling
+       "Sign in only with OAuth"; the settings refuse to enable it otherwise. -->
+    <record id="group_password_login" model="res.groups">
+        <field name="name">May sign in with a password</field>
+        <field name="category_id" ref="base.module_category_usability" />
+        <field
+            name="comment"
+        >Internal users in this group may still sign in with their password when "Sign in only with OAuth" is enabled. Keep it to a few break-glass accounts.</field>
+    </record>
+</odoo>

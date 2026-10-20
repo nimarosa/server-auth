@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Inherits auth_oauth's own settings view, which creates the Google
+       setting this one sits next to. -->
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.auth.oauth.only</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="auth_oauth.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <setting id="signin_google_setting" position="after">
+                <setting
+                    id="auth_oauth_only_setting"
+                    help="Internal users may only sign in through an OAuth provider"
+                    invisible="not module_auth_oauth"
+                >
+                    <field name="auth_oauth_only_enabled" />
+                    <div class="text-muted">
+            Members of "May sign in with a password" keep their password, on
+            /web/login?password=1. Add yourself to that group first.
+          </div>
+                </setting>
+            </setting>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <!-- Every node touched here is created by web.login itself or by
+       auth_oauth.providers (a dependency), never by a sibling view, so the
+       views are valid at the moment a fresh install creates them.
+       ``auth_oauth_only_hide_password`` comes from the web_login controller:
+       true when "Sign in only with OAuth" is on and the URL does not carry
+       the ?password=1 break-glass. -->
+    <template
+        id="login"
+        inherit_id="web.login"
+        name="OAuth only: hide the password form"
+    >
+        <!-- The user switcher reveals the form only once a remembered user is
+         picked, and fills the login/password inputs this view removes. -->
+        <xpath expr="//owl-component[@name='web.user_switch']" position="attributes">
+            <attribute
+                name="t-if"
+            >not login and not auth_oauth_only_hide_password</attribute>
+        </xpath>
+        <xpath expr="//form[@role='form']" position="attributes">
+            <attribute
+                name="t-attf-class"
+            >oe_login_form #{'' if login or auth_oauth_only_hide_password else 'd-none'}</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('field-login')]" position="attributes">
+            <attribute name="t-if">not auth_oauth_only_hide_password</attribute>
+        </xpath>
+        <!-- Also drops auth_signup's "Reset Password" link, which lives in the
+         password label. -->
+        <xpath expr="//input[@name='password']/.." position="attributes">
+            <attribute name="t-if">not auth_oauth_only_hide_password</attribute>
+        </xpath>
+        <xpath
+            expr="//div[hasclass('oe_login_buttons')]/button[@type='submit']"
+            position="attributes"
+        >
+            <attribute name="t-if">not auth_oauth_only_hide_password</attribute>
+        </xpath>
+        <!-- debug mode's "Log in as superuser", also a password submit -->
+        <xpath
+            expr="//div[hasclass('oe_login_buttons')]//button[@name='redirect']"
+            position="attributes"
+        >
+            <attribute name="t-if">not auth_oauth_only_hide_password</attribute>
+        </xpath>
+    </template>
+
+    <template
+        id="providers"
+        inherit_id="auth_oauth.providers"
+        name="OAuth only: no separator when the providers are alone"
+    >
+        <xpath expr="//em" position="attributes">
+            <attribute name="t-if">not auth_oauth_only_hide_password</attribute>
+        </xpath>
+    </template>
+</odoo>

@@ -1,0 +1,93 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* auth_oauth_only
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#. module: auth_oauth_only
+#: model:ir.model,name:auth_oauth_only.model_res_config_settings
+msgid "Config Settings"
+msgstr "Ajustes de configuración"
+
+#. module: auth_oauth_only
+#: model:res.groups,comment:auth_oauth_only.group_password_login
+msgid ""
+"Internal users in this group may still sign in with their password when "
+"\"Sign in only with OAuth\" is enabled. Keep it to a few break-glass "
+"accounts."
+msgstr ""
+"Los usuarios internos de este grupo pueden seguir iniciando sesión con su "
+"contraseña cuando \"Iniciar sesión solo con OAuth\" está activado. Limítelo "
+"a unas pocas cuentas de emergencia."
+
+#. module: auth_oauth_only
+#: model_terms:ir.ui.view,arch_db:auth_oauth_only.res_config_settings_view_form
+msgid "Internal users may only sign in through an OAuth provider"
+msgstr ""
+"Los usuarios internos solo pueden iniciar sesión mediante un proveedor OAuth"
+
+#. module: auth_oauth_only
+#: model:ir.model.fields,help:auth_oauth_only.field_res_config_settings__auth_oauth_only_enabled
+msgid ""
+"Internal users may only sign in through an OAuth provider. Members of the "
+"\"May sign in with a password\" group keep their password, and "
+"/web/login?password=1 shows them the password form."
+msgstr ""
+"Los usuarios internos solo pueden iniciar sesión mediante un proveedor "
+"OAuth. Los miembros del grupo \"Puede iniciar sesión con contraseña\" "
+"conservan su contraseña, y /web/login?password=1 les muestra el formulario "
+"de contraseña."
+
+#. module: auth_oauth_only
+#: model:res.groups,name:auth_oauth_only.group_password_login
+msgid "May sign in with a password"
+msgstr "Puede iniciar sesión con contraseña"
+
+#. module: auth_oauth_only
+#: model_terms:ir.ui.view,arch_db:auth_oauth_only.res_config_settings_view_form
+msgid ""
+"Members of \"May sign in with a password\" keep their password, on\n"
+"            /web/login?password=1. Add yourself to that group first."
+msgstr ""
+"Los miembros de \"Puede iniciar sesión con contraseña\" conservan su "
+"contraseña, en /web/login?password=1. Agréguese a ese grupo primero."
+
+#. module: auth_oauth_only
+#. odoo-python
+#: code:addons/auth_oauth_only/models/res_config_settings.py:0
+msgid ""
+"Nobody would be left able to sign in with a password. Add at least one "
+"active internal user to the group \"%(group)s\" before enabling this option."
+msgstr ""
+"Nadie podría iniciar sesión con contraseña. Agregue al menos un usuario "
+"interno activo al grupo \"%(group)s\" antes de activar esta opción."
+
+#. module: auth_oauth_only
+#: model:ir.model.fields,field_description:auth_oauth_only.field_res_config_settings__auth_oauth_only_enabled
+msgid "Sign in only with OAuth"
+msgstr "Iniciar sesión solo con OAuth"
+
+#. module: auth_oauth_only
+#. odoo-python
+#: code:addons/auth_oauth_only/models/res_users.py:0
+msgid ""
+"This account signs in with an OAuth provider only: use the provider button "
+"on the login page."
+msgstr ""
+"Esta cuenta inicia sesión solo con un proveedor OAuth: use el botón del "
+"proveedor en la página de inicio de sesión."
+
+#. module: auth_oauth_only
+#: model:ir.model,name:auth_oauth_only.model_res_users
+msgid "User"
+msgstr "Usuario"
